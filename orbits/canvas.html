@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Circle</title>
+        <script src="ui.js"></script>
+
+        <style>
+            body, html {
+                margin: 0;
+                padding: 0;
+            }
+
+            #canvas {
+                position: fixed;
+                width: 100%;
+                height: 100%;
+            }
+        </style>
+    </head>
+    <body>
+        <canvas id="canvas"></canvas>
+        <script>
+            const canvas = document.getElementById('canvas');
+            const context = canvas.getContext('2d');
+
+            const children = 5;
+            var levels = parseInt(location.hash.substr(1), 10);
+            if (isNaN(levels)) {
+                levels = 3;
+            }
+            const speed = 1/10000;
+
+            const resize = () => {
+                const w = canvas.clientWidth * devicePixelRatio;
+                const h = canvas.clientHeight * devicePixelRatio;
+                if (canvas.width !== w || canvas.height !== h) {
+                    canvas.width = w;
+                    canvas.height = h;
+                }
+            }
+
+            var start;
+            requestAnimationFrame(function render(time) {
+                if (start == null) {
+                    start = time;
+                }
+                time -= start;
+
+                resize();
+                context.fillStyle = 'rgb(0, 0, 0)';
+                context.fillRect(0, 0, canvas.width, canvas.height);
+                context.fillStyle = 'rgb(41, 170, 225)';
+                (function renderCircle(x, y, circleRadius, orbitRadius, time, level) {
+                    context.beginPath();
+                    context.moveTo(x, y);
+                    context.arc(x, y, circleRadius, 0, 2 * Math.PI);
+                    context.closePath();
+                    context.fill();
+                    if (level < levels) {
+                        for (var i = 1; i <= children; i++) {
+                            let theta = time + i * 2 * Math.PI / children;
+                            renderCircle(
+                                x + orbitRadius * Math.cos(theta),
+                                y + orbitRadius * Math.sin(theta),
+                                circleRadius * .55,
+                                orbitRadius * .8,
+                                time * 1.3,
+                                level + 1
+                            );
+                        }
+                    }
+                })(canvas.width / 2, canvas.height / 2, 50, 200, time * speed, 0);
+                requestAnimationFrame(render);
+            });
+        </script>
+    </body>
+</html>

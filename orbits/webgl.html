@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Circle</title>
+        <style>
+            body, html {
+                margin: 0;
+                padding: 0;
+            }
+
+            #canvas {
+                position: fixed;
+                width: 100%;
+                height: 100%;
+            }
+        </style>
+    </head>
+    <body>
+        <canvas id="canvas"></canvas>
+        <script>
+            const canvas = document.getElementById('canvas');
+            const options = {alpha:false, depth:false};
+            const gl = canvas.getContext('webgl', options) || canvas.getContext('experimental-webgl', options);
+
+            const children = 5;
+            var levels = parseInt(location.hash.substr(1), 10);
+            if (isNaN(levels)) {
+                levels = 3;
+            }
+
+            const vertices = [];
+            (function generate(value, level) {
+                // vertices 0-3, for two triangles
+                vertices.push(
+                    value, 0, value, 1, value, 2,
+                    value, 1, value, 2, value, 3
+                );
+                if (level < levels) {
+                    for (var i = 1; i <= children; i++) {
+                        generate((children + 1) * value + i, level + 1);
+                    }
+                }
+            })(0, 0);
+            const vertexArray = new Float32Array(vertices);
+
+            const resize = () => {
+                const w = canvas.clientWidth * devicePixelRatio;
+                const h = canvas.clientHeight * devicePixelRatio;
+                if (canvas.width !== w || canvas.height !== h) {
+                    canvas.width = w;
+                    canvas.height = h;
+                    gl.viewport(0, 0, w, h);
+                }
+            }
+
+            const createShader = (gl, type, source) => {
+                var shader = gl.createShader(type);
+                gl.shaderSource(shader, source);
+                gl.compileShader(shader);
+                if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                    throw new Error(`Compile failed:\n ${gl.getShaderInfoLog(shader)}`);
+                }
+                return shader;
+            };
+            const vertexShader = createShader(gl, gl.VERTEX_SHADER, `
+                #define PI ${Math.PI}
+                #define CHILDREN ${children}.
+                #define LEVELS ${levels}
+
+                uniform float u_time;
+                uniform vec2 u_resolution;
+                attribute float a_n;
+                attribute float a_v;
+                varying vec2 center;
+                varying float radius;
+
+                void main() {
+                    float time = u_time;
+                    float n = a_n;
+                    center = u_resolution / 2.;
+                    float r = 200.;
+                    radius = 50.;
+                    for (int i = 0; i < LEVELS; i++) {
+                        if (n > 0.5) {
+                            float index = mod(n, CHILDREN + 1.);
+                            float theta = index * 2. * PI / CHILDREN + time;
+                            center += r * vec2(cos(theta), sin(theta));
+                            r *= 0.8;
+                            radius *= 0.55;
+                            time /= 2. / 3.;
+                            n = (n - index) / (CHILDREN + 1.);
+                        }
+                    }
+
+                    vec2 vertex = vec2(mod(a_v, 2.) * 2., int(a_v) / 2 * 2) - vec2(1., 1.);
+                    vec2 position = center + radius * vertex;
+                    vec2 scaledPosition = position / (u_resolution / 2.) - vec2(1., 1.);
+                    gl_Position = vec4(scaledPosition, 0, 1);
+                }
+            `);
+            const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, `
+                precision mediump float;
+
+                varying vec2 center;
+                varying float radius;
+
+                void main() {
+                    vec2 d = vec2(gl_FragCoord) - center;
+                    float distanceSq = d.x * d.x + d.y * d.y;
+                    if (distanceSq < radius * radius) {
+                        gl_FragColor = vec4(vec3(41., 170., 225.) / 255., 1);
+                    } else {
+                        discard;
+                    }
+                }
+            `);
+
+            const program = gl.createProgram();
+            gl.attachShader(program, vertexShader);
+            gl.attachShader(program, fragmentShader);
+            gl.linkProgram(program);
+            if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+                throw new Error(`Link failed:\n ${gl.getProgramInfoLog(program)}`)
+            }
+
+            gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+            gl.bufferData(gl.ARRAY_BUFFER, vertexArray, gl.STATIC_DRAW);
+
+            var nLocation = gl.getAttribLocation(program, 'a_n');
+            gl.enableVertexAttribArray(nLocation);
+            gl.vertexAttribPointer(nLocation, 1, gl.FLOAT, false, 2 * Float32Array.BYTES_PER_ELEMENT, 0);
+
+            var vLocation = gl.getAttribLocation(program, 'a_v');
+            gl.enableVertexAttribArray(vLocation);
+            gl.vertexAttribPointer(vLocation, 1, gl.FLOAT, false, 2 * Float32Array.BYTES_PER_ELEMENT, Float32Array.BYTES_PER_ELEMENT);
+
+            gl.useProgram(program);
+
+            var start;
+            requestAnimationFrame(function render(time) {
+                if (start == null) {
+                    start = time;
+                }
+                time -= start;
+
+                resize();
+
+                gl.uniform2f(gl.getUniformLocation(program, 'u_resolution'), gl.drawingBufferWidth, gl.drawingBufferHeight);
+                gl.uniform1f(gl.getUniformLocation(program, 'u_time'), (time - start) / 10000);
+                gl.drawArrays(gl.TRIANGLES, 0, vertexArray.length / 2);
+
+                requestAnimationFrame(render);
+            });
+        </script>
+    </body>
+</html>

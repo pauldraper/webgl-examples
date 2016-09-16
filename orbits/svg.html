@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Circle</title>
+        <script src="ui.js"></script>
+
+        <style>
+            body, html {
+                margin: 0;
+                padding: 0;
+            }
+
+            #svg {
+                background: black;
+                position: fixed;
+                width: 100%;
+                height: 100%;
+            }
+        </style>
+    </head>
+    <body>
+        <svg id="svg"
+            shape-rendering="optimizeSpeed"
+            xmlns="http://www.w3.org/2000/svg"
+            version="1.1">
+        </svg>
+        <script>
+            const svg = document.getElementById('svg');
+            const namespace = 'http://www.w3.org/2000/svg';
+
+            const children = 5;
+            var levels = parseInt(location.hash.substr(1), 10);
+            if (isNaN(levels)) {
+                levels = 3;
+            }
+
+            const speed = 1/56;
+
+            (function addCircle(parent, x, y, circleRadius, orbitRadius, speed, level) {
+                var group = document.createElementNS(namespace, 'g');
+
+                var transform = document.createElementNS(namespace, 'animateTransform');
+                transform.setAttributeNS(null, 'attributeName', 'transform');
+                transform.setAttributeNS(null, 'attributeType', 'XML');
+                transform.setAttributeNS(null, 'type', 'rotate');
+                transform.setAttributeNS(null, 'from', `0 ${x} ${y}`);
+                transform.setAttributeNS(null, 'to', `360 ${x} ${y}`);
+                transform.setAttributeNS(null, 'dur', `${1 / speed}s`);
+                transform.setAttributeNS(null, 'repeatCount', 'indefinite');
+                group.appendChild(transform);
+
+                var circle = document.createElementNS(namespace, 'circle');
+                circle.setAttributeNS(null, 'cx', x);
+                circle.setAttributeNS(null, 'cy', y);
+                circle.setAttributeNS(null, 'r', circleRadius);
+                circle.setAttributeNS(null, 'fill', 'rgb(41, 170, 225)');
+                group.appendChild(circle);
+                if (level < levels) {
+                    for (var i = 0; i < children; i++) {
+                        let theta = i * 2 * Math.PI / children;
+                        addCircle(
+                            group,
+                            x + orbitRadius * Math.cos(theta),
+                            y + orbitRadius * Math.sin(theta),
+                            circleRadius * .55,
+                            orbitRadius * .8,
+                            speed * 0.5,
+                            level + 1
+                        );
+                    }
+                }
+
+                parent.appendChild(group);
+            })(svg, svg.clientWidth / 2, svg.clientHeight / 2, 50, 200, speed, 0);
+        </script>
+    </body>
+</html>
