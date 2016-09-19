@@ -21,6 +21,13 @@
             const canvas = document.getElementById('canvas');
             const options = {alpha:false, depth:false};
             const gl = canvas.getContext('webgl', options) || canvas.getContext('experimental-webgl', options);
+            if (!gl) {
+                throw new Error('Failed to get webgl context');
+            }
+            const instancedArrays = gl.getExtension('ANGLE_instanced_arrays');
+            if (!instancedArrays) {
+                throw new Error('ANGLE_instanced_arrays extension is unavailable');
+            }
 
             const children = 5;
             var levels = parseInt(location.hash.substr(1), 10);
@@ -28,20 +35,27 @@
                 levels = 3;
             }
 
-            const vertices = [];
+            const n = [];
             (function generate(value, level) {
-                // vertices 0-3, for two triangles
-                vertices.push(
-                    value, 0, value, 1, value, 2,
-                    value, 1, value, 2, value, 3
-                );
+                n.push(value);
                 if (level < levels) {
                     for (var i = 1; i <= children; i++) {
                         generate((children + 1) * value + i, level + 1);
                     }
                 }
             })(0, 0);
-            const vertexArray = new Float32Array(vertices);
+            const vertexArray = new Float32Array([0, 1, 2, 3]);
+            const nArray = new Float32Array(n);
+
+            const resize = () => {
+                const w = canvas.clientWidth * devicePixelRatio;
+                const h = canvas.clientHeight * devicePixelRatio;
+                if (canvas.width !== w || canvas.height !== h) {
+                    canvas.width = w;
+                    canvas.height = h;
+                    gl.viewport(0, 0, w, h);
+                }
+            }
 
             const createShader = (gl, type, source) => {
                 var shader = gl.createShader(type);
@@ -57,8 +71,6 @@
                 #define CHILDREN ${children}.
                 #define LEVELS ${levels}
 
-                uniform float u_circle_radius;
-                uniform float u_orbit_radius;
                 uniform float u_time;
                 uniform vec2 u_resolution;
                 attribute float a_n;
@@ -70,14 +82,14 @@
                     float time = u_time;
                     float n = a_n;
                     center = u_resolution / 2.;
-                    radius = u_circle_radius;
-                    float orbit_radius = u_orbit_radius;
+                    float r = 200.;
+                    radius = 50.;
                     for (int i = 0; i < LEVELS; i++) {
                         if (n > 0.5) {
                             float index = mod(n, CHILDREN + 1.);
                             float theta = index * 2. * PI / CHILDREN + time;
-                            center += orbit_radius * vec2(cos(theta), sin(theta));
-                            orbit_radius *= 0.8;
+                            center += r * vec2(cos(theta), sin(theta));
+                            r *= 0.8;
                             radius *= 0.55;
                             time /= 2. / 3.;
                             n = (n - index) / (CHILDREN + 1.);
@@ -115,23 +127,21 @@
                 throw new Error(`Link failed:\n ${gl.getProgramInfoLog(program)}`)
             }
 
-            gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
-            gl.bufferData(gl.ARRAY_BUFFER, vertexArray, gl.STATIC_DRAW);
-
             const nLocation = gl.getAttribLocation(program, 'a_n');
             gl.enableVertexAttribArray(nLocation);
-            gl.vertexAttribPointer(nLocation, 1, gl.FLOAT, false, 2 * Float32Array.BYTES_PER_ELEMENT, 0);
+            gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+            gl.bufferData(gl.ARRAY_BUFFER, nArray, gl.STATIC_DRAW);
+            gl.vertexAttribPointer(nLocation, 1, gl.FLOAT, false, 0, 0);
+            instancedArrays.vertexAttribDivisorANGLE(nLocation, 1);
 
             const vLocation = gl.getAttribLocation(program, 'a_v');
             gl.enableVertexAttribArray(vLocation);
-            gl.vertexAttribPointer(vLocation, 1, gl.FLOAT, false, 2 * Float32Array.BYTES_PER_ELEMENT, Float32Array.BYTES_PER_ELEMENT);
+            gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+            gl.bufferData(gl.ARRAY_BUFFER, vertexArray, gl.STATIC_DRAW);
+            gl.vertexAttribPointer(vLocation, 1, gl.FLOAT, false, 0, 0);
 
             gl.useProgram(program);
 
-            const circleRadiusLocation = gl.getUniformLocation(program, 'u_circle_radius');
-            const orbitRadiusLocation = gl.getUniformLocation(program, 'u_orbit_radius');
-            const resolutionLocation = gl.getUniformLocation(program, 'u_resolution');
-            const timeLocation = gl.getUniformLocation(program, 'u_time');
             var start;
             requestAnimationFrame(function render(time) {
                 if (start == null) {
@@ -139,20 +149,11 @@
                 }
                 time -= start;
 
-                const w = Math.round(canvas.clientWidth * devicePixelRatio);
-                const h = Math.round(canvas.clientHeight * devicePixelRatio);
-                if (canvas.width !== w || canvas.height !== h) {
-                    canvas.width = w;
-                    canvas.height = h;
-                    gl.viewport(0, 0, w, h);
-                    gl.uniform2f(resolutionLocation, gl.drawingBufferWidth, gl.drawingBufferHeight);
-                }
+                resize();
 
-                gl.uniform1f(circleRadiusLocation, 50 * devicePixelRatio);
-                gl.uniform1f(orbitRadiusLocation, 200 * devicePixelRatio);
-                gl.uniform1f(timeLocation, time / 10000);
-                gl.drawArrays(gl.TRIANGLES, 0, vertexArray.length / 2);
-
+                gl.uniform2f(gl.getUniformLocation(program, 'u_resolution'), gl.drawingBufferWidth, gl.drawingBufferHeight);
+                gl.uniform1f(gl.getUniformLocation(program, 'u_time'), time / 10000);
+                instancedArrays.drawArraysInstancedANGLE(gl.TRIANGLE_STRIP, 0, vertexArray.length, nArray.length);
                 requestAnimationFrame(render);
             });
         </script>

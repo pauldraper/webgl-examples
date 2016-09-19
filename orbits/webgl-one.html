@@ -29,12 +29,10 @@
             }
 
             const vertices = [];
+            const minV = -1;
+            const maxV = 1 + Math.sqrt(2);
             (function generate(value, level) {
-                // vertices 0-3, for two triangles
-                vertices.push(
-                    value, 0, value, 1, value, 2,
-                    value, 1, value, 2, value, 3
-                );
+                vertices.push(value, minV, minV, value, minV, maxV, value, maxV, minV);
                 if (level < levels) {
                     for (var i = 1; i <= children; i++) {
                         generate((children + 1) * value + i, level + 1);
@@ -62,7 +60,7 @@
                 uniform float u_time;
                 uniform vec2 u_resolution;
                 attribute float a_n;
-                attribute float a_v;
+                attribute vec2 a_v;
                 varying vec2 center;
                 varying float radius;
 
@@ -84,8 +82,7 @@
                         }
                     }
 
-                    vec2 vertex = vec2(mod(a_v, 2.) * 2., int(a_v) / 2 * 2) - vec2(1., 1.);
-                    vec2 position = center + radius * vertex;
+                    vec2 position = center + radius * a_v;
                     vec2 scaledPosition = position / (u_resolution / 2.) - vec2(1., 1.);
                     gl_Position = vec4(scaledPosition, 0, 1);
                 }
@@ -120,11 +117,11 @@
 
             const nLocation = gl.getAttribLocation(program, 'a_n');
             gl.enableVertexAttribArray(nLocation);
-            gl.vertexAttribPointer(nLocation, 1, gl.FLOAT, false, 2 * Float32Array.BYTES_PER_ELEMENT, 0);
+            gl.vertexAttribPointer(nLocation, 1, gl.FLOAT, false, 3 * Float32Array.BYTES_PER_ELEMENT, 0);
 
             const vLocation = gl.getAttribLocation(program, 'a_v');
             gl.enableVertexAttribArray(vLocation);
-            gl.vertexAttribPointer(vLocation, 1, gl.FLOAT, false, 2 * Float32Array.BYTES_PER_ELEMENT, Float32Array.BYTES_PER_ELEMENT);
+            gl.vertexAttribPointer(vLocation, 2, gl.FLOAT, false, 3 * Float32Array.BYTES_PER_ELEMENT, Float32Array.BYTES_PER_ELEMENT);
 
             gl.useProgram(program);
 
@@ -151,7 +148,7 @@
                 gl.uniform1f(circleRadiusLocation, 50 * devicePixelRatio);
                 gl.uniform1f(orbitRadiusLocation, 200 * devicePixelRatio);
                 gl.uniform1f(timeLocation, time / 10000);
-                gl.drawArrays(gl.TRIANGLES, 0, vertexArray.length / 2);
+                gl.drawArrays(gl.TRIANGLES, 0, vertexArray.length / 3);
 
                 requestAnimationFrame(render);
             });
